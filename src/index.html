@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>モンテカルロ法3D可視化 - 円周率を求めよう！</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div id="app">
+        <div id="canvas-container"></div>
+        
+        <div id="ui-container">
+            <div class="panel">
+                <h1>🎯 モンテカルロ法で円周率を求めよう！</h1>
+                <p class="description">
+                    ボールを落として円の中に入るかどうかで円周率を推定します！
+                </p>
+                
+                <div class="stats-container">
+                    <div class="stat-item">
+                        <span class="stat-label">総ボール数:</span>
+                        <span id="total-balls" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">円内のボール:</span>
+                        <span id="inside-balls" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">円周率の推定値:</span>
+                        <span id="pi-estimate" class="stat-value highlight">0.000000</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">誤差:</span>
+                        <span id="error" class="stat-value">0.00%</span>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <button id="start-btn" class="btn btn-primary">
+                        シミュレーション開始
+                    </button>
+                    <button id="pause-btn" class="btn btn-secondary" disabled>
+                        一時停止
+                    </button>
+                    <button id="reset-btn" class="btn btn-danger">
+                        リセット
+                    </button>
+                </div>
+                
+                <div class="settings">
+                    <label>
+                        同時投下ボール数:
+                        <input type="range" id="batch-size-slider" min="1" max="300" value="5">
+                        <span id="batch-size-value">5</span>
+                    </label>
+                </div>
+                
+                <div class="environmental-controls">
+                    <h3>🌪️ 環境パラメーター</h3>
+                    
+                    <div class="env-scroll-container">
+                        <div class="env-group">
+                            <div class="param-header">
+                                <label>🌬️ 風速: <span id="wind-speed-value">0.1</span> m/s</label>
+                                <button class="info-btn" data-param="wind-speed">ⓘ</button>
+                            </div>
+                            <input type="range" id="wind-speed" min="0" max="20" value="0.1" step="0.1">
+                        </div>
+                        
+                        <div class="env-group">
+                            <div class="param-header">
+                                <label>🧭 風向: <span id="wind-direction-value">0</span>°</label>
+                                <button class="info-btn" data-param="wind-direction">ⓘ</button>
+                            </div>
+                            <input type="range" id="wind-direction" min="0" max="360" value="0">
+                        </div>
+                        
+                        <div class="env-group">
+                            <div class="param-header">
+                                <label>🌡️ 気温: <span id="temperature-value">22</span>°C</label>
+                                <button class="info-btn" data-param="temperature">ⓘ</button>
+                            </div>
+                            <input type="range" id="temperature" min="-20" max="50" value="22">
+                        </div>
+                        
+                        <div class="env-group">
+                            <div class="param-header">
+                                <label>💨 気圧: <span id="air-pressure-value">1013</span>hPa</label>
+                                <button class="info-btn" data-param="air-pressure">ⓘ</button>
+                            </div>
+                            <input type="range" id="air-pressure" min="950" max="1050" value="1013">
+                        </div>
+                        
+                        <div class="env-group">
+                            <div class="param-header">
+                                <label>💧 湿度: <span id="humidity-value">45</span>%</label>
+                                <button class="info-btn" data-param="humidity">ⓘ</button>
+                            </div>
+                            <input type="range" id="humidity" min="0" max="100" value="45">
+                        </div>
+                        
+                        <div class="env-group">
+                            <div class="param-header">
+                                <label>🌪️ 乱気流: <span id="turbulence-value">0</span></label>
+                                <button class="info-btn" data-param="turbulence">ⓘ</button>
+                            </div>
+                            <input type="range" id="turbulence" min="0" max="5" value="0" step="0.1">
+                        </div>
+                        
+                        <div class="env-group">
+                            <div class="param-header">
+                                <label>🧲 磁場: <span id="magnetic-field-value">0</span> T</label>
+                                <button class="info-btn" data-param="magnetic-field">ⓘ</button>
+                            </div>
+                            <input type="range" id="magnetic-field" min="0" max="10" value="0" step="0.1">
+                        </div>
+                        
+                        <div class="env-group">
+                            <div class="param-header">
+                                <label>⚡ イオン電荷: <span id="ionic-charge-value">0</span> kV/m</label>
+                                <button class="info-btn" data-param="ionic-charge">ⓘ</button>
+                            </div>
+                            <input type="range" id="ionic-charge" min="0" max="10" value="0" step="0.1">
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="preset-buttons">
+                        <button id="chaos-preset-btn" class="btn btn-chaos">
+                            🌀 CHAOS MAX
+                        </button>
+                        <button id="calm-preset-btn" class="btn btn-calm">
+                            😌 穏やかモード
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="info">
+                    <h3>📚 モンテカルロ法とは？</h3>
+                    <p>
+                        乱数を使って数値計算を行う手法です。<br>
+                        正方形の中に円を描き、ランダムに点を打つと...<br>
+                        円内の点数 ÷ 全体の点数 = π/4 となります！
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Parameter Information Modal -->
+    <div id="info-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">パラメーター詳細</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="modal-description"></div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

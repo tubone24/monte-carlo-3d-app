@@ -1,0 +1,55 @@
+import * as THREE from 'three';
+
+export interface Ball {
+    mesh: THREE.Mesh;
+    velocity: THREE.Vector3;
+    isInside: boolean;
+    hasLanded: boolean;
+    id: string;
+}
+
+export interface SimulationConfig {
+    circleRadius: number;
+    dropHeight: number;
+    floorLevel: number;
+    gravity: number;
+    bounceDamping: number;
+    maxBalls: number;
+    batchSize: number;
+}
+
+export interface EnvironmentalParameters {
+    windSpeed: number;
+    windDirection: number;
+    airPressure: number;
+    humidity: number;
+    temperature: number;
+    turbulence: number;
+    magneticField: number;
+    ionicCharge: number;
+}
+
+export interface SimulationStats {
+    totalBalls: number;
+    insideBalls: number;
+    piEstimate: number;
+    error: number;
+}
+
+export interface UIElements {
+    totalBallsElement: HTMLElement;
+    insideBallsElement: HTMLElement;
+    piEstimateElement: HTMLElement;
+    errorElement: HTMLElement;
+    startBtn: HTMLButtonElement;
+    pauseBtn: HTMLButtonElement;
+    resetBtn: HTMLButtonElement;
+    batchSizeSlider: HTMLInputElement;
+    batchSizeValue: HTMLElement;
+}
+
+export enum SimulationState {
+    STOPPED = 'stopped',
+    RUNNING = 'running',
+    PAUSED = 'paused'
+}
