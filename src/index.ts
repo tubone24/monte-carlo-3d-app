@@ -25,6 +25,10 @@ class MonteCarloSimulation {
     private lastDropTime: number = 0;
     private animationId: number = 0;
     
+    // 累積統計
+    private totalBallsDropped: number = 0;
+    private totalInsideBalls: number = 0;
+    
     constructor() {
         this.config = {
             circleRadius: 8,
@@ -124,6 +128,10 @@ class MonteCarloSimulation {
         this.ballFactory.resetCounter();
         this.lastDropTime = 0;
         
+        // 累積統計もリセット
+        this.totalBallsDropped = 0;
+        this.totalInsideBalls = 0;
+        
         this.updateStats();
         this.uiManager.updateButtonStates(this.state);
         this.uiManager.showMessage('シミュレーションリセット完了', 'info');
@@ -175,9 +183,16 @@ class MonteCarloSimulation {
             
             this.lastDropTime = currentTime;
             
+            // 着地したボールの統計を累積カウントに追加してから削除
             if (this.balls.length > 5000) {
                 const ballsToRemove = this.balls.splice(0, 1000);
                 ballsToRemove.forEach(ball => {
+                    if (ball.hasLanded) {
+                        this.totalBallsDropped++;
+                        if (ball.isInside) {
+                            this.totalInsideBalls++;
+                        }
+                    }
                     this.ballFactory.removeBall(ball);
                 });
             }
@@ -197,8 +212,13 @@ class MonteCarloSimulation {
     }
     
     private updateStats(): void {
-        const totalBalls = this.balls.filter(ball => ball.hasLanded).length;
-        const insideBalls = this.balls.filter(ball => ball.hasLanded && ball.isInside).length;
+        // 現在着地しているボール数を累積カウントに追加
+        const currentLandedBalls = this.balls.filter(ball => ball.hasLanded).length;
+        const currentInsideBalls = this.balls.filter(ball => ball.hasLanded && ball.isInside).length;
+        
+        // 累積統計を計算
+        const totalBalls = this.totalBallsDropped + currentLandedBalls;
+        const insideBalls = this.totalInsideBalls + currentInsideBalls;
         
         let piEstimate = 0;
         let error = 0;
@@ -220,8 +240,13 @@ class MonteCarloSimulation {
     }
     
     private getCurrentStats(): SimulationStats {
-        const totalBalls = this.balls.filter(ball => ball.hasLanded).length;
-        const insideBalls = this.balls.filter(ball => ball.hasLanded && ball.isInside).length;
+        // 現在着地しているボール数を累積カウントに追加
+        const currentLandedBalls = this.balls.filter(ball => ball.hasLanded).length;
+        const currentInsideBalls = this.balls.filter(ball => ball.hasLanded && ball.isInside).length;
+        
+        // 累積統計を計算
+        const totalBalls = this.totalBallsDropped + currentLandedBalls;
+        const insideBalls = this.totalInsideBalls + currentInsideBalls;
         
         let piEstimate = 0;
         let error = 0;
