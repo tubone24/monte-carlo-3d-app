@@ -325,46 +325,6 @@ export class UIManager {
                     <p>0-5 （無風状態〜激しい乱気流）</p>
                 `
             },
-            'magnetic-field': {
-                title: '🧲 磁場 (Magnetic Field)',
-                description: `
-                    <h4>物理的影響</h4>
-                    <p>磁場は<strong>ローレンツ力</strong> F = q(v × B) により、帯電した物体に力を加えます。</p>
-                    
-                    <h4>具体的な効果</h4>
-                    <ul>
-                        <li><strong>サイクロトロン運動</strong>: 磁場垂直方向での円運動</li>
-                        <li><strong>ホール効果</strong>: 電荷分離による横方向の力</li>
-                        <li><strong>磁化プラズマとの相互作用</strong>: 電離した空気分子との力学的結合</li>
-                    </ul>
-                    
-                    <h4>実際の例</h4>
-                    <p>地球の磁場（約50μT）は弱すぎて日常物体には影響しませんが、MRI装置周辺（数テスラ）では金属製のボールペンが飛ばされるほどです。</p>
-                    
-                    <h4>設定範囲</h4>
-                    <p>0-10 T （地磁気〜超電導磁石レベル）</p>
-                `
-            },
-            'ionic-charge': {
-                title: '⚡ イオン電荷 (Ionic Charge)',
-                description: `
-                    <h4>物理的影響</h4>
-                    <p>電場は<strong>クーロンの法則</strong> F = qE により、帯電粒子に直接力を加えます。</p>
-                    
-                    <h4>具体的な効果</h4>
-                    <ul>
-                        <li><strong>電気力</strong>: F = qE = q(-∇φ) （電位勾配による力）</li>
-                        <li><strong>誘電分極</strong>: 非帯電物体でも双極子モーメント形成</li>
-                        <li><strong>コロナ放電</strong>: 高電場での空気の電離</li>
-                    </ul>
-                    
-                    <h4>実際の例</h4>
-                    <p>雷雲下では電場が10⁶ V/m に達し、髪の毛が逆立つほどです。また、3Dプリンターの静電気除去システムでは微小粒子を電場で制御します。</p>
-                    
-                    <h4>設定範囲</h4>
-                    <p>0-10 kV/m （通常環境〜雷雲レベル）</p>
-                `
-            },
         };
         
         return paramInfo[param] || {

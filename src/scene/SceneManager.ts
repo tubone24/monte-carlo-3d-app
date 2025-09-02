@@ -25,13 +25,13 @@ export class SceneManager {
     
     private createCamera(): THREE.PerspectiveCamera {
         const camera = new THREE.PerspectiveCamera(
-            60,
+            10, // 視野角を広げて教室全体が見えるように
             window.innerWidth / window.innerHeight,
             0.1,
             1000
         );
-        camera.position.set(25, 15, 25);
-        camera.lookAt(0, -5, 0);
+        camera.position.set(1.0, -2.5, 0.8); // 教室内に入り込むように近く
+        camera.lookAt(0, -4.8, 0); // モンテカルロ領域の真上から見下ろす
         return camera;
     }
     
@@ -53,19 +53,19 @@ export class SceneManager {
         this.scene.add(ambientLight);
         
         const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        sunLight.position.set(20, 30, 10);
+        sunLight.position.set(5, -1, 3); // 教室サイズに合わせて調整
         sunLight.castShadow = true;
-        sunLight.shadow.camera.left = -30;
-        sunLight.shadow.camera.right = 30;
-        sunLight.shadow.camera.top = 30;
-        sunLight.shadow.camera.bottom = -30;
+        sunLight.shadow.camera.left = -5;
+        sunLight.shadow.camera.right = 5;
+        sunLight.shadow.camera.top = 5;
+        sunLight.shadow.camera.bottom = -5;
         sunLight.shadow.mapSize.width = 2048;
         sunLight.shadow.mapSize.height = 2048;
         this.scene.add(sunLight);
     }
     
     private setupHelpers(): void {
-        const gridHelper = new THREE.GridHelper(40, 20, 0x666666, 0xcccccc);
+        const gridHelper = new THREE.GridHelper(8, 16, 0x666666, 0xcccccc); // 教室サイズ8m×8mのグリッド
         gridHelper.position.y = -5;
         this.scene.add(gridHelper);
     }
@@ -81,9 +81,10 @@ export class SceneManager {
     }
     
     public updateCameraPosition(time: number): void {
-        this.camera.position.x = Math.cos(time * 0.0005) * 30;
-        this.camera.position.z = Math.sin(time * 0.0005) * 30;
-        this.camera.lookAt(0, -5, 0);
+        this.camera.position.x = Math.cos(time * 0.0005) * 1.0; // 教室内で非常に近くから回転
+        this.camera.position.z = Math.sin(time * 0.0005) * 1.0;
+        this.camera.position.y = -2.5; // 机の少し上の高さから
+        this.camera.lookAt(0, -4.8, 0); // モンテカルロ領域の真上から見下ろす
     }
     
     public dispose(): void {

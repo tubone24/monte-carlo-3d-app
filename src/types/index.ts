@@ -3,6 +3,7 @@ import * as THREE from 'three';
 export interface Ball {
     mesh: THREE.Mesh;
     velocity: THREE.Vector3;
+    angularVelocity: THREE.Vector3;
     isInside: boolean;
     hasLanded: boolean;
     id: string;
@@ -25,8 +26,6 @@ export interface EnvironmentalParameters {
     humidity: number;
     temperature: number;
     turbulence: number;
-    magneticField: number;
-    ionicCharge: number;
 }
 
 export interface SimulationStats {
@@ -52,4 +51,24 @@ export enum SimulationState {
     STOPPED = 'stopped',
     RUNNING = 'running',
     PAUSED = 'paused'
+}
+
+export enum SimulationMode {
+    MONTE_CARLO = 'monte_carlo',
+    COLLISION = 'collision'
+}
+
+export interface CollisionObject {
+    mesh: THREE.Mesh;
+    velocity: THREE.Vector3;
+    mass: number;
+    id: string;
+    type: 'P' | 'Q';
+}
+
+export interface CollisionStats {
+    totalCollisions: number;
+    massRatio: number;
+    piEstimate: number;
+    error: number;
 }

@@ -7,6 +7,7 @@ export class CircleArea {
     private centerZ: number;
     private floorLevel: number;
     private circleOutline!: THREE.Mesh;
+    private objects: THREE.Object3D[] = [];
     
     constructor(scene: THREE.Scene, radius: number = 8, floorLevel: number = -5) {
         this.scene = scene;
@@ -40,6 +41,7 @@ export class CircleArea {
             this.centerZ
         );
         this.scene.add(this.circleOutline);
+        this.objects.push(this.circleOutline);
         
         const circleFill = new THREE.CircleGeometry(this.radius, 64);
         const fillMaterial = new THREE.MeshBasicMaterial({ 
@@ -55,6 +57,7 @@ export class CircleArea {
             this.centerZ
         );
         this.scene.add(circleMesh);
+        this.objects.push(circleMesh);
     }
     
     private createSquareOutline(): void {
@@ -80,6 +83,7 @@ export class CircleArea {
             this.centerZ
         );
         this.scene.add(square);
+        this.objects.push(square);
     }
     
     private createAxisLabels(): void {
@@ -92,12 +96,14 @@ export class CircleArea {
         const xLabel = new THREE.Mesh(xLabelGeometry, xLabelMaterial);
         xLabel.position.set(this.radius + 2, this.floorLevel + 2, 0);
         this.scene.add(xLabel);
+        this.objects.push(xLabel);
         
         const zLabelGeometry = new THREE.BoxGeometry(0.1, 0.5, 2);
         const zLabelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
         const zLabel = new THREE.Mesh(zLabelGeometry, zLabelMaterial);
         zLabel.position.set(0, this.floorLevel + 2, this.radius + 2);
         this.scene.add(zLabel);
+        this.objects.push(zLabel);
     }
     
     public isPointInCircle(x: number, z: number): boolean {
@@ -124,5 +130,23 @@ export class CircleArea {
             const opacity = 0.5 + 0.3 * Math.sin(time * 0.005);
             (this.circleOutline.material as THREE.MeshBasicMaterial).opacity = opacity;
         }
+    }
+    
+    public clear(): void {
+        this.objects.forEach(obj => {
+            this.scene.remove(obj);
+            if (obj instanceof THREE.Mesh) {
+                obj.geometry.dispose();
+                if (obj.material instanceof THREE.Material) {
+                    obj.material.dispose();
+                }
+            } else if (obj instanceof THREE.Line) {
+                obj.geometry.dispose();
+                if (obj.material instanceof THREE.Material) {
+                    obj.material.dispose();
+                }
+            }
+        });
+        this.objects = [];
     }
 }

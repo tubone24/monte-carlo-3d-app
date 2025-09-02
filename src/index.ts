@@ -7,7 +7,9 @@ import { BallFactory } from './objects/BallFactory';
 import { BlackboardDisplay } from './objects/BlackboardDisplay';
 import { EnhancedBallPhysics } from './physics/EnhancedBallPhysics';
 import { UIManager } from './ui/UIManager';
-import { Ball, SimulationConfig, SimulationStats, SimulationState, EnvironmentalParameters } from './types';
+import { ErrorChart } from './ui/ErrorChart';
+import { CollisionSimulation } from './simulation/CollisionSimulation';
+import { Ball, SimulationConfig, SimulationStats, SimulationState, EnvironmentalParameters, SimulationMode, CollisionStats } from './types';
 
 class MonteCarloSimulation {
     private sceneManager!: SceneManager;
@@ -17,11 +19,14 @@ class MonteCarloSimulation {
     private ballPhysics!: EnhancedBallPhysics;
     private uiManager!: UIManager;
     private blackboardDisplay!: BlackboardDisplay;
+    private errorChart!: ErrorChart;
+    private collisionSimulation!: CollisionSimulation;
     
     private balls: Ball[] = [];
     private config: SimulationConfig;
     private environment: EnvironmentalParameters;
     private state: SimulationState = SimulationState.STOPPED;
+    private mode: SimulationMode = SimulationMode.MONTE_CARLO;
     private lastDropTime: number = 0;
     private animationId: number = 0;
     
@@ -31,10 +36,10 @@ class MonteCarloSimulation {
     
     constructor() {
         this.config = {
-            circleRadius: 8,
-            dropHeight: 20,
+            circleRadius: 1.5, // 教室中央の現実的なサイズ（直径3m）
+            dropHeight: 2.0,
             floorLevel: -5,
-            gravity: -30,
+            gravity: -9.8,
             bounceDamping: 0.7,
             maxBalls: -1,
             batchSize: 5
@@ -46,9 +51,7 @@ class MonteCarloSimulation {
             airPressure: 1013.25,
             humidity: 45,
             temperature: 22,
-            turbulence: 0,
-            magneticField: 0,
-            ionicCharge: 0
+            turbulence: 0
         };
         
         this.initialize();
@@ -77,6 +80,9 @@ class MonteCarloSimulation {
             this.ballPhysics = new EnhancedBallPhysics(this.config.floorLevel);
             
             this.blackboardDisplay = new BlackboardDisplay(this.sceneManager.scene);
+            this.errorChart = new ErrorChart();
+            
+            this.collisionSimulation = new CollisionSimulation(this.sceneManager.scene);
             
             this.uiManager = new UIManager(
                 () => this.start(),
@@ -86,6 +92,7 @@ class MonteCarloSimulation {
             );
             
             this.setupEnvironmentalControls();
+            this.setupModeSelector();
             
             this.setupInitialState();
             this.startRenderLoop();
@@ -106,6 +113,11 @@ class MonteCarloSimulation {
     private start(): void {
         if (this.state === SimulationState.STOPPED || this.state === SimulationState.PAUSED) {
             this.state = SimulationState.RUNNING;
+            
+            if (this.mode === SimulationMode.COLLISION) {
+                this.collisionSimulation.start();
+            }
+            
             this.uiManager.updateButtonStates(this.state);
             this.uiManager.showMessage('シミュレーション開始！', 'info');
         }
@@ -114,6 +126,11 @@ class MonteCarloSimulation {
     private pause(): void {
         if (this.state === SimulationState.RUNNING) {
             this.state = SimulationState.PAUSED;
+            
+            if (this.mode === SimulationMode.COLLISION) {
+                this.collisionSimulation.stop();
+            }
+            
             this.uiManager.updateButtonStates(this.state);
             this.uiManager.showMessage('シミュレーション一時停止', 'warning');
         }
@@ -122,15 +139,22 @@ class MonteCarloSimulation {
     private reset(): void {
         this.state = SimulationState.STOPPED;
         
-        this.ballFactory.clearAllBalls(this.balls);
-        this.balls = [];
-        
-        this.ballFactory.resetCounter();
-        this.lastDropTime = 0;
-        
-        // 累積統計もリセット
-        this.totalBallsDropped = 0;
-        this.totalInsideBalls = 0;
+        if (this.mode === SimulationMode.MONTE_CARLO) {
+            this.ballFactory.clearAllBalls(this.balls);
+            this.balls = [];
+            
+            this.ballFactory.resetCounter();
+            this.lastDropTime = 0;
+            
+            // 累積統計もリセット
+            this.totalBallsDropped = 0;
+            this.totalInsideBalls = 0;
+            
+            // グラフもリセット
+            this.errorChart.reset();
+        } else {
+            this.collisionSimulation.reset();
+        }
         
         this.updateStats();
         this.uiManager.updateButtonStates(this.state);
@@ -160,14 +184,25 @@ class MonteCarloSimulation {
         this.cameraController.update(deltaTime);
         
         if (this.state === SimulationState.RUNNING) {
-            this.updateSimulation(currentTime);
+            if (this.mode === SimulationMode.MONTE_CARLO) {
+                this.updateMonteCarloSimulation(currentTime);
+                this.ballPhysics.update(this.balls, deltaTime / 1000, this.environment);
+            } else {
+                this.collisionSimulation.update(deltaTime / 1000);
+                if (this.collisionSimulation.isComplete()) {
+                    this.state = SimulationState.STOPPED;
+                    this.uiManager.updateButtonStates(this.state);
+                    this.uiManager.showMessage('シミュレーション完了！', 'success');
+                }
+            }
+        } else if (this.mode === SimulationMode.MONTE_CARLO) {
+            this.ballPhysics.update(this.balls, deltaTime / 1000, this.environment);
         }
         
-        this.ballPhysics.update(this.balls, deltaTime / 1000, this.environment);
         this.updateStats();
     }
     
-    private updateSimulation(currentTime: number): void {
+    private updateMonteCarloSimulation(currentTime: number): void {
         const dropInterval = 500; // 500msごとにバッチ投下
         
         if (currentTime - this.lastDropTime > dropInterval && 
@@ -200,8 +235,11 @@ class MonteCarloSimulation {
     }
     
     private render(currentTime: number): void {
-        this.circleArea.animateOutline(currentTime);
-        this.ballFactory.animateBallColors(this.balls, currentTime);
+        if (this.mode === SimulationMode.MONTE_CARLO) {
+            this.circleArea.animateOutline(currentTime);
+            this.ballFactory.animateBallColors(this.balls);
+        }
+        
         this.uiManager.animateStats(currentTime);
         
         // π値を黒板に表示
@@ -212,6 +250,11 @@ class MonteCarloSimulation {
     }
     
     private updateStats(): void {
+        if (this.mode === SimulationMode.COLLISION) {
+            this.updateCollisionStats();
+            return;
+        }
+        
         // 現在着地しているボール数を累積カウントに追加
         const currentLandedBalls = this.balls.filter(ball => ball.hasLanded).length;
         const currentInsideBalls = this.balls.filter(ball => ball.hasLanded && ball.isInside).length;
@@ -237,9 +280,34 @@ class MonteCarloSimulation {
         };
         
         this.uiManager.updateStats(stats);
+        
+        // グラフに誤差データを追加（100個以上の試行がある場合のみ）
+        if (totalBalls >= 100) {
+            this.errorChart.addDataPoint(totalBalls, error, piEstimate, insideBalls);
+        }
     }
     
-    private getCurrentStats(): SimulationStats {
+    private updateCollisionStats(): void {
+        const stats = this.collisionSimulation.getStats();
+        const expectedCollisions = this.collisionSimulation.getExpectedCollisions();
+        
+        // 衝突シミュレーション用の統計を更新
+        const collisionCountElement = document.getElementById('collision-count');
+        const expectedCollisionsElement = document.getElementById('expected-collisions');
+        const collisionPiElement = document.getElementById('collision-pi-estimate');
+        const collisionErrorElement = document.getElementById('collision-error');
+        
+        if (collisionCountElement) collisionCountElement.textContent = stats.totalCollisions.toString();
+        if (expectedCollisionsElement) expectedCollisionsElement.textContent = expectedCollisions.toString();
+        if (collisionPiElement) collisionPiElement.textContent = stats.piEstimate.toFixed(6);
+        if (collisionErrorElement) collisionErrorElement.textContent = `${stats.error.toFixed(2)}%`;
+    }
+    
+    private getCurrentStats(): SimulationStats | CollisionStats {
+        if (this.mode === SimulationMode.COLLISION) {
+            return this.collisionSimulation.getStats();
+        }
+        
         // 現在着地しているボール数を累積カウントに追加
         const currentLandedBalls = this.balls.filter(ball => ball.hasLanded).length;
         const currentInsideBalls = this.balls.filter(ball => ball.hasLanded && ball.isInside).length;
@@ -286,8 +354,6 @@ class MonteCarloSimulation {
         setupSlider('air-pressure', 'airPressure', 'air-pressure-value');
         setupSlider('humidity', 'humidity', 'humidity-value');
         setupSlider('turbulence', 'turbulence', 'turbulence-value');
-        setupSlider('magnetic-field', 'magneticField', 'magnetic-field-value');
-        setupSlider('ionic-charge', 'ionicCharge', 'ionic-charge-value');
         
         // プリセットボタン
         const chaosBtn = document.getElementById('chaos-preset-btn');
@@ -303,13 +369,11 @@ class MonteCarloSimulation {
             windDirection: Math.random() * 360,
             airPressure: 950 + Math.random() * 100,
             humidity: 80 + Math.random() * 20,
-            temperature: 30 + Math.random() * 20,
-            turbulence: 4.5,
-            magneticField: 8,
-            ionicCharge: 9
+            temperature: 35 + Math.random() * 15,
+            turbulence: 3.0
         };
         this.updateEnvironmentalUI();
-        this.uiManager.showMessage('🌪️ CHAOS MAX発動！カオス的な環境になりました！', 'warning');
+        this.uiManager.showMessage('🌪️ 激しい気象条件になりました！', 'warning');
     }
     
     private applyCalmPreset(): void {
@@ -319,12 +383,10 @@ class MonteCarloSimulation {
             airPressure: 1013.25,
             humidity: 45,
             temperature: 22,
-            turbulence: 0,
-            magneticField: 0,
-            ionicCharge: 0
+            turbulence: 0
         };
         this.updateEnvironmentalUI();
-        this.uiManager.showMessage('😌 穏やかな環境になりました', 'success');
+        this.uiManager.showMessage('😌 標準的な気象条件になりました', 'success');
     }
     
     private updateEnvironmentalUI(): void {
@@ -341,8 +403,96 @@ class MonteCarloSimulation {
         updateElement('air-pressure-value', this.environment.airPressure);
         updateElement('humidity-value', this.environment.humidity);
         updateElement('turbulence-value', this.environment.turbulence);
-        updateElement('magnetic-field-value', this.environment.magneticField);
-        updateElement('ionic-charge-value', this.environment.ionicCharge);
+    }
+    
+    private setupModeSelector(): void {
+        const monteCarloBtn = document.getElementById('mode-monte-carlo');
+        const collisionBtn = document.getElementById('mode-collision');
+        const massRatioSelect = document.getElementById('mass-ratio-select') as HTMLSelectElement;
+        
+        monteCarloBtn?.addEventListener('click', () => {
+            this.switchMode(SimulationMode.MONTE_CARLO);
+        });
+        
+        collisionBtn?.addEventListener('click', () => {
+            this.switchMode(SimulationMode.COLLISION);
+        });
+        
+        massRatioSelect?.addEventListener('change', (e) => {
+            const target = e.target as HTMLSelectElement;
+            const massRatio = parseInt(target.value);
+            this.collisionSimulation.setMassRatio(massRatio);
+            this.updateCollisionStats();
+        });
+    }
+    
+    private switchMode(newMode: SimulationMode): void {
+        if (this.mode === newMode) return;
+        
+        // 現在のシミュレーションを停止
+        this.state = SimulationState.STOPPED;
+        this.uiManager.updateButtonStates(this.state);
+        
+        // 既存のオブジェクトをクリア
+        if (this.mode === SimulationMode.MONTE_CARLO) {
+            this.ballFactory.clearAllBalls(this.balls);
+            this.balls = [];
+            this.circleArea.clear();
+        } else {
+            this.collisionSimulation.clear();
+        }
+        
+        // モードを切り替え
+        this.mode = newMode;
+        
+        // UI要素の表示/非表示を切り替え
+        const monteCarloBtn = document.getElementById('mode-monte-carlo');
+        const collisionBtn = document.getElementById('mode-collision');
+        const monteCarloStats = document.getElementById('monte-carlo-stats');
+        const collisionStats = document.getElementById('collision-stats');
+        const monteCarloSettings = document.getElementById('monte-carlo-settings');
+        const collisionSettings = document.getElementById('collision-settings');
+        const environmentalControls = document.getElementById('environmental-controls');
+        const title = document.getElementById('simulation-title');
+        const description = document.getElementById('simulation-description');
+        
+        if (newMode === SimulationMode.MONTE_CARLO) {
+            monteCarloBtn?.classList.add('active');
+            collisionBtn?.classList.remove('active');
+            if (monteCarloStats) monteCarloStats.style.display = 'block';
+            if (collisionStats) collisionStats.style.display = 'none';
+            if (monteCarloSettings) monteCarloSettings.style.display = 'block';
+            if (collisionSettings) collisionSettings.style.display = 'none';
+            if (environmentalControls) environmentalControls.style.display = 'block';
+            if (title) title.textContent = '🎯 モンテカルロ法で円周率を求めよう！';
+            if (description) description.textContent = 'ボールを落として円の中に入るかどうかで円周率を推定します！';
+            
+            // モンテカルロ法のオブジェクトを再作成
+            this.circleArea = new CircleArea(
+                this.sceneManager.scene, 
+                this.config.circleRadius, 
+                this.config.floorLevel
+            );
+            this.errorChart.reset();
+        } else {
+            monteCarloBtn?.classList.remove('active');
+            collisionBtn?.classList.add('active');
+            if (monteCarloStats) monteCarloStats.style.display = 'none';
+            if (collisionStats) collisionStats.style.display = 'block';
+            if (monteCarloSettings) monteCarloSettings.style.display = 'none';
+            if (collisionSettings) collisionSettings.style.display = 'block';
+            if (environmentalControls) environmentalControls.style.display = 'none';
+            if (title) title.textContent = '💥 衝突シミュレーションで円周率を求めよう！';
+            if (description) description.textContent = '2つの物体と壁の衝突回数から円周率を導出します（PLAYING POOL WITH π）';
+            
+            // 衝突シミュレーションを初期化
+            const massRatioSelect = document.getElementById('mass-ratio-select') as HTMLSelectElement;
+            const massRatio = parseInt(massRatioSelect?.value || '100');
+            this.collisionSimulation.initialize(massRatio);
+        }
+        
+        this.updateStats();
+        this.uiManager.showMessage(`${newMode === SimulationMode.MONTE_CARLO ? 'モンテカルロ法' : '衝突シミュレーション'}モードに切り替えました`, 'info');
     }
     
     private showError(message: string): void {
@@ -356,6 +506,7 @@ class MonteCarloSimulation {
         
         this.ballFactory?.clearAllBalls(this.balls);
         this.blackboardDisplay?.dispose();
+        this.errorChart?.dispose();
         this.cameraController?.dispose();
         this.uiManager?.dispose();
         this.sceneManager?.dispose();

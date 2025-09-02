@@ -35,9 +35,9 @@ export class BlackboardDisplay {
         });
         
         // 黒板の手前にテキストプレーンを配置
-        const textGeometry = new THREE.PlaneGeometry(20, 10);
+        const textGeometry = new THREE.PlaneGeometry(3.6, 1.2); // 新しい黒板サイズに合わせて
         const textMesh = new THREE.Mesh(textGeometry, this.textMaterial);
-        textMesh.position.set(0, 10, -24.3); // 黒板よりわずかに手前
+        textMesh.position.set(0, -3.1, -2.85); // 黒板位置に合わせて調整
         textMesh.name = 'blackboard-text';
         
         this.scene.add(textMesh);
@@ -76,8 +76,8 @@ export class BlackboardDisplay {
         const data = imageData.data;
         
         for (let i = 0; i < data.length; i += 4) {
-            // チョークの粉っぽい質感を表現
-            const noise = Math.random() * 10 - 5;
+            // チョークの粉っぽい質感を表現（より強いノイズ）
+            const noise = Math.random() * 20 - 10;
             data[i] += noise;     // R
             data[i + 1] += noise; // G
             data[i + 2] += noise; // B
@@ -89,13 +89,13 @@ export class BlackboardDisplay {
     private drawPiEquation(): void {
         this.ctx.save();
         
-        // チョークの色（白っぽい色）
-        this.ctx.fillStyle = '#F5F5DC';
-        this.ctx.strokeStyle = '#F5F5DC';
-        this.ctx.lineWidth = 2;
+        // チョークの色（より明るい白）
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.strokeStyle = '#FFFFFF';
+        this.ctx.lineWidth = 3;
         
-        // 手書き風のフォント
-        this.ctx.font = 'bold 80px serif';
+        // 手書き風のフォント（より大きく見やすく）
+        this.ctx.font = 'bold 80px "Comic Sans MS", cursive, serif';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
         
@@ -105,25 +105,28 @@ export class BlackboardDisplay {
         const y = this.canvas.height / 2;
         
         // 手書き風の効果のため、わずかに揺らぎを加える
-        const wobbleX = (Math.random() - 0.5) * 3;
-        const wobbleY = (Math.random() - 0.5) * 3;
+        const wobbleX = (Math.random() - 0.5) * 5;
+        const wobbleY = (Math.random() - 0.5) * 5;
         
-        // 影効果
-        this.ctx.fillStyle = 'rgba(220, 220, 220, 0.3)';
-        this.ctx.fillText(piText, x + wobbleX + 2, y + wobbleY + 2);
+        // チョークの重ね塗り効果（複数回描画）
+        for (let i = 0; i < 3; i++) {
+            const offsetX = (Math.random() - 0.5) * 2;
+            const offsetY = (Math.random() - 0.5) * 2;
+            this.ctx.globalAlpha = 0.3 + i * 0.3;
+            this.ctx.fillText(piText, x + wobbleX + offsetX, y + wobbleY + offsetY);
+        }
         
-        // メインテキスト
-        this.ctx.fillStyle = '#F5F5DC';
-        this.ctx.fillText(piText, x + wobbleX, y + wobbleY);
+        this.ctx.globalAlpha = 1.0;
         
         // チョークの質感を表現するため、テキストにノイズを加える
         this.addTextNoise(x + wobbleX, y + wobbleY);
         
         // 小さなサブテキスト
-        this.ctx.font = 'bold 32px serif';
-        this.ctx.fillStyle = '#E0E0E0';
+        this.ctx.font = 'bold 32px "Comic Sans MS", cursive, serif';
+        this.ctx.fillStyle = '#EEEEEE';
+        this.ctx.globalAlpha = 0.8;
         const subText = 'Monte Carlo Method';
-        this.ctx.fillText(subText, x, y + 80);
+        this.ctx.fillText(subText, x, y + 60);
         
         this.ctx.restore();
     }
@@ -132,15 +135,27 @@ export class BlackboardDisplay {
         // テキストエリア周辺にチョークの粉を散らす
         this.ctx.save();
         
-        for (let i = 0; i < 30; i++) {
-            const dustX = x + (Math.random() - 0.5) * 400;
-            const dustY = y + (Math.random() - 0.5) * 100;
-            const dustSize = Math.random() * 3 + 1;
+        // より多くのチョークダストを追加
+        for (let i = 0; i < 100; i++) {
+            const dustX = x + (Math.random() - 0.5) * 500;
+            const dustY = y + (Math.random() - 0.5) * 150;
+            const dustSize = Math.random() * 4 + 1;
             
-            this.ctx.fillStyle = `rgba(245, 245, 220, ${Math.random() * 0.3})`;
+            this.ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.15})`;
             this.ctx.beginPath();
             this.ctx.arc(dustX, dustY, dustSize, 0, Math.PI * 2);
             this.ctx.fill();
+        }
+        
+        // 筆跡のかすれを表現
+        for (let j = 0; j < 20; j++) {
+            const streakX = x + (Math.random() - 0.5) * 300;
+            const streakY = y + (Math.random() - 0.5) * 50;
+            const streakWidth = Math.random() * 30 + 10;
+            const streakHeight = Math.random() * 3 + 1;
+            
+            this.ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.05})`;
+            this.ctx.fillRect(streakX, streakY, streakWidth, streakHeight);
         }
         
         this.ctx.restore();
