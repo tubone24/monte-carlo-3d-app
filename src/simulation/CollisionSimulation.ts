@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CollisionObject, CollisionStats } from '../types';
+import { CollisionObject, CollisionStats, CollisionPhysicsParameters } from '../types';
 
 export class CollisionSimulation {
     private scene: THREE.Scene;
@@ -14,6 +14,32 @@ export class CollisionSimulation {
     private expectedCollisions: number = 0;
     private lastCollisionTime: number = 0;
     private initialEnergy: number = 0;
+    
+    // 物理パラメーター
+    private physicsParams: CollisionPhysicsParameters = {
+        friction: {
+            slidingFriction: 0.0,
+            rollingFriction: 0.0,
+            staticFriction: 0.0
+        },
+        wallRestitution: 1.0,
+        objectRestitution: 1.0,
+        airResistance: 0.0,
+        surfaceRoughness: 0.0,
+        rotationalDamping: 0.0,
+        dragCoefficient: 0.47,  // 球体の抗力係数
+        magnusCoefficient: 0.0,
+        environment: {
+            temperature: 20,     // ℃
+            humidity: 50,       // %
+            pressure: 101325   // Pa (標準大気圧)
+        },
+        enableMagnusEffect: false,
+        enableRealisticAirDrag: false
+    };
+    
+    // 物体の半径（統一）
+    private readonly sphereRadius: number = 0.15;
     
     // 物体の位置設定
     private objectHeight: number = -4.5;
@@ -130,6 +156,7 @@ export class CollisionSimulation {
         this.objectQ = {
             mesh: qMesh,
             velocity: new THREE.Vector3(0, 0, 0),
+            angularVelocity: new THREE.Vector3(0, 0, 0),
             mass: 1,
             id: 'Q',
             type: 'Q'
@@ -156,6 +183,7 @@ export class CollisionSimulation {
         this.objectP = {
             mesh: pMesh,
             velocity: new THREE.Vector3(initialVelocity, 0, 0), // 初速度（左向き）
+            angularVelocity: new THREE.Vector3(0, 0, 0),
             mass: this.massRatio,
             id: 'P',
             type: 'P'
@@ -288,6 +316,13 @@ export class CollisionSimulation {
     private updatePhysics(dt: number): void {
         if (!this.objectP || !this.objectQ) return;
         
+        // 空気抵抗の適用
+        this.applyAirResistance(dt);
+        
+        // 摩擦の適用
+        this.applyFriction(this.objectP, dt);
+        this.applyFriction(this.objectQ, dt);
+        
         // 位置の更新
         this.objectP.mesh.position.x += this.objectP.velocity.x * dt;
         this.objectQ.mesh.position.x += this.objectQ.velocity.x * dt;
@@ -360,6 +395,138 @@ export class CollisionSimulation {
         }
     }
     
+    private calculateAirProperties(): { density: number; viscosity: number } {
+        const T = this.physicsParams.environment.temperature + 273.15; // Kelvin
+        const p = this.physicsParams.environment.pressure;
+        const humidity = this.physicsParams.environment.humidity;
+        
+        // Sutherland's formulaによる粘性計算
+        const T0 = 291.15;
+        const mu0 = 1.827e-5;
+        const S = 120;
+        const viscosity = mu0 * Math.pow(T/T0, 1.5) * (T0 + S)/(T + S);
+        
+        // 理想気体の法則による密度計算（湿度補正含む）
+        // R = 287.05 J/(kg·K)
+        const saturationPressure = 610.78 * Math.exp(17.27 * this.physicsParams.environment.temperature / (237.3 + this.physicsParams.environment.temperature));
+        const vaporPressure = humidity / 100 * saturationPressure;
+        const dryAirPressure = p - vaporPressure;
+        
+        // 湿度を考慮した密度計算
+        const density = (dryAirPressure * 0.029 + vaporPressure * 0.018) / (8.314 * T);
+        
+        return { density, viscosity };
+    }
+    
+    private applyAirResistance(dt: number): void {
+        if (!this.objectP || !this.objectQ) return;
+        
+        if (this.physicsParams.enableRealisticAirDrag) {
+            // 物理的に正確な空気抵抗の計算
+            const airProps = this.calculateAirProperties();
+            const crossSectionArea = Math.PI * this.sphereRadius * this.sphereRadius;
+            const dragConstant = 0.5 * this.physicsParams.dragCoefficient * airProps.density * crossSectionArea;
+            
+            // P物体への空気抵抗
+            const pVel = this.objectP.velocity.x;
+            if (Math.abs(pVel) > 0.001) {
+                const pDragForce = -dragConstant * pVel * Math.abs(pVel);
+                this.objectP.velocity.x += (pDragForce / this.objectP.mass) * dt;
+            }
+            
+            // Q物体への空気抵抗
+            const qVel = this.objectQ.velocity.x;
+            if (Math.abs(qVel) > 0.001) {
+                const qDragForce = -dragConstant * qVel * Math.abs(qVel);
+                this.objectQ.velocity.x += (qDragForce / this.objectQ.mass) * dt;
+            }
+        } else {
+            // 簡略化された空気抵抗モデル（後方互換性のため）
+            const airResistance = this.physicsParams.airResistance;
+            
+            if (airResistance > 0) {
+                const pVel = this.objectP.velocity.x;
+                const pDrag = -airResistance * pVel * Math.abs(pVel);
+                this.objectP.velocity.x += (pDrag / this.objectP.mass) * dt;
+                
+                const qVel = this.objectQ.velocity.x;
+                const qDrag = -airResistance * qVel * Math.abs(qVel);
+                this.objectQ.velocity.x += (qDrag / this.objectQ.mass) * dt;
+            }
+        }
+        
+        // 回転減衰の適用（角速度の減衰）
+        const rotationalDamping = this.physicsParams.rotationalDamping;
+        if (rotationalDamping > 0) {
+            this.objectP.angularVelocity.multiplyScalar(1 - rotationalDamping * dt);
+            this.objectQ.angularVelocity.multiplyScalar(1 - rotationalDamping * dt);
+        }
+        
+        // Magnus効果の適用
+        if (this.physicsParams.enableMagnusEffect) {
+            this.applyMagnusEffect(this.objectP, dt);
+            this.applyMagnusEffect(this.objectQ, dt);
+        }
+    }
+    
+    private calculateEffectiveRestitution(baseRestitution: number, roughness: number): number {
+        // 表面粗さによる反発係数の減少
+        // Sandeep et al. (2020)の実験データに基づく
+        const roughnessEffect = Math.exp(-roughness * 5);
+        return baseRestitution * roughnessEffect;
+    }
+    
+    private applyFriction(object: CollisionObject, dt: number): void {
+        const vel = object.velocity.x;
+        const angularVel = object.angularVelocity.z;
+        const radius = this.sphereRadius;
+        
+        // 転がり条件の確認 (v = ωr)
+        const isRolling = Math.abs(vel - angularVel * radius) < 0.001;
+        
+        if (isRolling) {
+            // 転がり摩擦
+            const rollingResistance = this.physicsParams.friction.rollingFriction * object.mass * 9.81;
+            if (Math.abs(vel) > 0.001) {
+                const frictionForce = -Math.sign(vel) * rollingResistance;
+                object.velocity.x += (frictionForce / object.mass) * dt;
+            }
+        } else {
+            // 滑り摩擦
+            const slidingFriction = this.physicsParams.friction.slidingFriction * object.mass * 9.81;
+            if (Math.abs(vel) > 0.001) {
+                const frictionForce = -Math.sign(vel) * slidingFriction;
+                object.velocity.x += (frictionForce / object.mass) * dt;
+                
+                // 角速度を転がり条件に近づける
+                const targetAngularVel = vel / radius;
+                const angularCorrection = (targetAngularVel - angularVel) * 0.1;
+                object.angularVelocity.z += angularCorrection;
+            }
+        }
+    }
+    
+    private applyMagnusEffect(object: CollisionObject, _dt: number): void {
+        const airProps = this.calculateAirProperties();
+        const area = Math.PI * this.sphereRadius * this.sphereRadius;
+        
+        const vel = object.velocity.length();
+        if (vel > 0.01 && object.angularVelocity.length() > 0.01) {
+            // Magnus力: F = 0.5 * ρ * v² * A * CL
+            // CL = 4π * (ω × v) / v² （簡略化版）
+            const magnusCoeff = this.physicsParams.magnusCoefficient * 
+                               4 * Math.PI * object.angularVelocity.z * this.sphereRadius / vel;
+            const magnusForce = 0.5 * airProps.density * vel * vel * area * magnusCoeff;
+            
+            // Magnus効果による垂直方向の力を記録（将来の3D拡張用）
+            // 2DシミュレーションではY方向の動きを制限
+            if (magnusForce > 0) {
+                // デバッグ用に記録
+                console.log(`Magnus effect on ${object.id}: ${magnusForce.toFixed(6)} N`);
+            }
+        }
+    }
+    
     private handlePQCollision(): void {
         if (!this.objectP || !this.objectQ) return;
         
@@ -369,18 +536,29 @@ export class CollisionSimulation {
         const v1 = this.objectP.velocity.x;
         const v2 = this.objectQ.velocity.x;
         
-        // 衝突後の速度（1次元完全弾性衝突の公式）
-        // 質量比が大きい場合、Pの速度はほとんど変わらない
-        const newV1 = ((m1 - m2) * v1 + 2 * m2 * v2) / (m1 + m2);
-        const newV2 = ((m2 - m1) * v2 + 2 * m1 * v1) / (m1 + m2);
+        // 反発係数を考慮した衝突後の速度
+        const e = this.physicsParams.objectRestitution; // 反発係数 (0: 非弾性, 1: 完全弾性)
+        
+        // 反発係数を使った衝突公式
+        const relativeVelocity = v1 - v2;
+        const newV1 = v1 - (1 + e) * m2 * relativeVelocity / (m1 + m2);
+        const newV2 = v2 + (1 + e) * m1 * relativeVelocity / (m1 + m2);
+        
+        // 表面粗さによる反発係数の計算
+        const effectiveRestitution = this.calculateEffectiveRestitution(e, this.physicsParams.surfaceRoughness);
+        
+        // 摩擦効果の適用（衝突時のエネルギー損失）
+        const frictionFactor = 1 - this.physicsParams.friction.slidingFriction * 0.1;
+        const roughnessFactor = 1 - this.physicsParams.surfaceRoughness * 0.05;
         
         // デバッグログ
         console.log(`Collision! Before: P=${v1.toFixed(3)}, Q=${v2.toFixed(3)}`);
         console.log(`After: P=${newV1.toFixed(3)}, Q=${newV2.toFixed(3)}`);
-        console.log(`Mass ratio: ${m1}:${m2}`);
+        console.log(`Mass ratio: ${m1}:${m2}, Restitution: ${effectiveRestitution}, Sliding Friction: ${this.physicsParams.friction.slidingFriction}`);
         
-        this.objectP.velocity.x = newV1;
-        this.objectQ.velocity.x = newV2;
+        // 摩擦と表面粗さを適用
+        this.objectP.velocity.x = newV1 * frictionFactor * roughnessFactor;
+        this.objectQ.velocity.x = newV2 * frictionFactor * roughnessFactor;
         
         // 物体を少し離す（貫通防止）
         const pRadius = 0.15;
@@ -411,8 +589,15 @@ export class CollisionSimulation {
     private handleWallCollision(): void {
         if (!this.objectQ) return;
         
-        // 完全弾性衝突（壁は無限大の質量）- 速度を反転
-        this.objectQ.velocity.x = -this.objectQ.velocity.x;
+        // 表面粗さを考慮した壁の反発係数
+        const effectiveWallRestitution = this.calculateEffectiveRestitution(
+            this.physicsParams.wallRestitution, 
+            this.physicsParams.surfaceRoughness
+        );
+        const frictionFactor = 1 - this.physicsParams.friction.slidingFriction * 0.05;
+        const roughnessFactor = 1 - this.physicsParams.surfaceRoughness * 0.03;
+        
+        this.objectQ.velocity.x = -this.objectQ.velocity.x * effectiveWallRestitution * frictionFactor * roughnessFactor;
         
         console.log(`Q-Wall collision! Q velocity reversed to: ${this.objectQ.velocity.x.toFixed(3)}`);
         
@@ -438,8 +623,15 @@ export class CollisionSimulation {
     private handlePWallCollision(): void {
         if (!this.objectP) return;
         
-        // Pが壁に衝突した場合も速度を反転
-        this.objectP.velocity.x = -this.objectP.velocity.x;
+        // 表面粗さを考慮した壁の反発係数
+        const effectiveWallRestitution = this.calculateEffectiveRestitution(
+            this.physicsParams.wallRestitution, 
+            this.physicsParams.surfaceRoughness
+        );
+        const frictionFactor = 1 - this.physicsParams.friction.slidingFriction * 0.05;
+        const roughnessFactor = 1 - this.physicsParams.surfaceRoughness * 0.03;
+        
+        this.objectP.velocity.x = -this.objectP.velocity.x * effectiveWallRestitution * frictionFactor * roughnessFactor;
         
         console.log(`P-Wall collision! P velocity reversed to: ${this.objectP.velocity.x.toFixed(3)}`);
         
@@ -577,5 +769,88 @@ export class CollisionSimulation {
     
     public isComplete(): boolean {
         return !this.isRunning && this.collisionCount >= this.expectedCollisions;
+    }
+    
+    // 物理パラメーター制御メソッド
+    public getPhysicsParams(): CollisionPhysicsParameters {
+        return { ...this.physicsParams };
+    }
+    
+    public setPhysicsParams(params: Partial<CollisionPhysicsParameters>): void {
+        this.physicsParams = { ...this.physicsParams, ...params };
+    }
+    
+    public setPhysicsPreset(preset: 'ideal' | 'realistic' | 'extreme'): void {
+        switch (preset) {
+            case 'ideal':
+                this.physicsParams = {
+                    friction: {
+                        slidingFriction: 0.0,
+                        rollingFriction: 0.0,
+                        staticFriction: 0.0
+                    },
+                    wallRestitution: 1.0,
+                    objectRestitution: 1.0,
+                    airResistance: 0.0,
+                    surfaceRoughness: 0.0,
+                    rotationalDamping: 0.0,
+                    dragCoefficient: 0.47,
+                    magnusCoefficient: 0.0,
+                    environment: {
+                        temperature: 20,
+                        humidity: 50,
+                        pressure: 101325
+                    },
+                    enableMagnusEffect: false,
+                    enableRealisticAirDrag: false
+                };
+                break;
+            case 'realistic':
+                this.physicsParams = {
+                    friction: {
+                        slidingFriction: 0.05,
+                        rollingFriction: 0.002,
+                        staticFriction: 0.1
+                    },
+                    wallRestitution: 0.85,
+                    objectRestitution: 0.90,
+                    airResistance: 0.0001,
+                    surfaceRoughness: 0.02,
+                    rotationalDamping: 0.1,
+                    dragCoefficient: 0.47,
+                    magnusCoefficient: 0.1,
+                    environment: {
+                        temperature: 20,
+                        humidity: 50,
+                        pressure: 101325
+                    },
+                    enableMagnusEffect: true,
+                    enableRealisticAirDrag: true
+                };
+                break;
+            case 'extreme':
+                this.physicsParams = {
+                    friction: {
+                        slidingFriction: 0.15,
+                        rollingFriction: 0.01,
+                        staticFriction: 0.2
+                    },
+                    wallRestitution: 0.60,
+                    objectRestitution: 0.70,
+                    airResistance: 0.001,
+                    surfaceRoughness: 0.08,
+                    rotationalDamping: 0.3,
+                    dragCoefficient: 0.47,
+                    magnusCoefficient: 0.3,
+                    environment: {
+                        temperature: 35,
+                        humidity: 80,
+                        pressure: 99000
+                    },
+                    enableMagnusEffect: true,
+                    enableRealisticAirDrag: true
+                };
+                break;
+        }
     }
 }

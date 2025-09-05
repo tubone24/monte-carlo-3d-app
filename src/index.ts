@@ -424,6 +424,125 @@ class MonteCarloSimulation {
             this.collisionSimulation.setMassRatio(massRatio);
             this.updateCollisionStats();
         });
+        
+        // 物理パラメーター制御の設定
+        this.setupPhysicsControls();
+    }
+    
+    private setupPhysicsControls(): void {
+        // スライダーのイベントリスナー設定
+        const frictionSlider = document.getElementById('friction') as HTMLInputElement;
+        const wallRestitutionSlider = document.getElementById('wall-restitution') as HTMLInputElement;
+        const objectRestitutionSlider = document.getElementById('object-restitution') as HTMLInputElement;
+        const airResistanceSlider = document.getElementById('air-resistance') as HTMLInputElement;
+        const surfaceRoughnessSlider = document.getElementById('surface-roughness') as HTMLInputElement;
+        const rotationalDampingSlider = document.getElementById('rotational-damping') as HTMLInputElement;
+        
+        // 値表示要素
+        const frictionValue = document.getElementById('friction-value');
+        const wallRestitutionValue = document.getElementById('wall-restitution-value');
+        const objectRestitutionValue = document.getElementById('object-restitution-value');
+        const airResistanceValue = document.getElementById('air-resistance-value');
+        const surfaceRoughnessValue = document.getElementById('surface-roughness-value');
+        const rotationalDampingValue = document.getElementById('rotational-damping-value');
+        
+        // 摩擦係数（滑り摩擦を代表値として使用）
+        frictionSlider?.addEventListener('input', (e) => {
+            const value = parseFloat((e.target as HTMLInputElement).value) / 100;
+            if (frictionValue) frictionValue.textContent = value.toFixed(2);
+            this.collisionSimulation.setPhysicsParams({ 
+                friction: {
+                    slidingFriction: value,
+                    rollingFriction: value * 0.04,  // 滑り摩擦の4%程度
+                    staticFriction: value * 2       // 滑り摩擦の2倍程度
+                }
+            });
+        });
+        
+        // 壁の反発係数
+        wallRestitutionSlider?.addEventListener('input', (e) => {
+            const value = parseFloat((e.target as HTMLInputElement).value) / 100;
+            if (wallRestitutionValue) wallRestitutionValue.textContent = value.toFixed(2);
+            this.collisionSimulation.setPhysicsParams({ wallRestitution: value });
+        });
+        
+        // 物体間反発係数
+        objectRestitutionSlider?.addEventListener('input', (e) => {
+            const value = parseFloat((e.target as HTMLInputElement).value) / 100;
+            if (objectRestitutionValue) objectRestitutionValue.textContent = value.toFixed(2);
+            this.collisionSimulation.setPhysicsParams({ objectRestitution: value });
+        });
+        
+        // 空気抵抗
+        airResistanceSlider?.addEventListener('input', (e) => {
+            const value = parseFloat((e.target as HTMLInputElement).value) / 100;
+            if (airResistanceValue) airResistanceValue.textContent = value.toFixed(2);
+            this.collisionSimulation.setPhysicsParams({ airResistance: value });
+        });
+        
+        // 表面粗さ
+        surfaceRoughnessSlider?.addEventListener('input', (e) => {
+            const value = parseFloat((e.target as HTMLInputElement).value) / 100;
+            if (surfaceRoughnessValue) surfaceRoughnessValue.textContent = value.toFixed(2);
+            this.collisionSimulation.setPhysicsParams({ surfaceRoughness: value });
+        });
+        
+        // 回転減衰
+        rotationalDampingSlider?.addEventListener('input', (e) => {
+            const value = parseFloat((e.target as HTMLInputElement).value) / 100;
+            if (rotationalDampingValue) rotationalDampingValue.textContent = value.toFixed(2);
+            this.collisionSimulation.setPhysicsParams({ rotationalDamping: value });
+        });
+        
+        // プリセットボタン
+        const idealPresetBtn = document.getElementById('ideal-preset-btn');
+        const realisticPresetBtn = document.getElementById('realistic-preset-btn');
+        const extremePresetBtn = document.getElementById('extreme-preset-btn');
+        
+        idealPresetBtn?.addEventListener('click', () => {
+            this.collisionSimulation.setPhysicsPreset('ideal');
+            this.updatePhysicsUI();
+            this.uiManager.showMessage('理想条件を適用しました', 'success');
+        });
+        
+        realisticPresetBtn?.addEventListener('click', () => {
+            this.collisionSimulation.setPhysicsPreset('realistic');
+            this.updatePhysicsUI();
+            this.uiManager.showMessage('現実的な条件を適用しました', 'info');
+        });
+        
+        extremePresetBtn?.addEventListener('click', () => {
+            this.collisionSimulation.setPhysicsPreset('extreme');
+            this.updatePhysicsUI();
+            this.uiManager.showMessage('極限環境を適用しました', 'warning');
+        });
+    }
+    
+    private updatePhysicsUI(): void {
+        const params = this.collisionSimulation.getPhysicsParams();
+        
+        // スライダーの値を更新（滑り摩擦を代表値として使用）
+        (document.getElementById('friction') as HTMLInputElement).value = (params.friction.slidingFriction * 100).toString();
+        (document.getElementById('wall-restitution') as HTMLInputElement).value = (params.wallRestitution * 100).toString();
+        (document.getElementById('object-restitution') as HTMLInputElement).value = (params.objectRestitution * 100).toString();
+        (document.getElementById('air-resistance') as HTMLInputElement).value = (params.airResistance * 100).toString();
+        (document.getElementById('surface-roughness') as HTMLInputElement).value = (params.surfaceRoughness * 100).toString();
+        (document.getElementById('rotational-damping') as HTMLInputElement).value = (params.rotationalDamping * 100).toString();
+        
+        // 表示値を更新
+        const frictionValue = document.getElementById('friction-value');
+        const wallRestitutionValue = document.getElementById('wall-restitution-value');
+        const objectRestitutionValue = document.getElementById('object-restitution-value');
+        const airResistanceValue = document.getElementById('air-resistance-value');
+        const surfaceRoughnessValue = document.getElementById('surface-roughness-value');
+        const rotationalDampingValue = document.getElementById('rotational-damping-value');
+        
+        if (frictionValue) frictionValue.textContent = params.friction.slidingFriction.toFixed(2);
+        if (wallRestitutionValue) wallRestitutionValue.textContent = params.wallRestitution.toFixed(2);
+        if (objectRestitutionValue) objectRestitutionValue.textContent = params.objectRestitution.toFixed(2);
+        if (airResistanceValue) airResistanceValue.textContent = params.airResistance.toFixed(2);
+        if (surfaceRoughnessValue) surfaceRoughnessValue.textContent = params.surfaceRoughness.toFixed(2);
+        if (rotationalDampingValue) rotationalDampingValue.textContent = params.rotationalDamping.toFixed(2);
     }
     
     private switchMode(newMode: SimulationMode): void {

@@ -97,6 +97,67 @@
                     <div class="mass-info">
                         <small>質量比が大きいほど衝突回数が増え、より正確な円周率が得られます</small>
                     </div>
+                    
+                    <div class="physics-parameters">
+                        <h4>🔬 物理パラメーター</h4>
+                        
+                        <div class="param-group">
+                            <label>
+                                摩擦係数: <span id="friction-value">0.00</span>
+                                <input type="range" id="friction" min="0" max="100" value="0" step="1">
+                            </label>
+                        </div>
+                        
+                        <div class="param-group">
+                            <label>
+                                壁の反発係数: <span id="wall-restitution-value">1.00</span>
+                                <input type="range" id="wall-restitution" min="0" max="100" value="100" step="1">
+                            </label>
+                        </div>
+                        
+                        <div class="param-group">
+                            <label>
+                                物体間反発係数: <span id="object-restitution-value">1.00</span>
+                                <input type="range" id="object-restitution" min="0" max="100" value="100" step="1">
+                            </label>
+                        </div>
+                        
+                        <div class="param-group">
+                            <label>
+                                空気抵抗: <span id="air-resistance-value">0.00</span>
+                                <input type="range" id="air-resistance" min="0" max="100" value="0" step="1">
+                            </label>
+                        </div>
+                        
+                        <div class="param-group">
+                            <label>
+                                表面粗さ: <span id="surface-roughness-value">0.00</span>
+                                <input type="range" id="surface-roughness" min="0" max="100" value="0" step="1">
+                            </label>
+                        </div>
+                        
+                        <div class="param-group">
+                            <label>
+                                回転減衰: <span id="rotational-damping-value">0.00</span>
+                                <input type="range" id="rotational-damping" min="0" max="100" value="0" step="1">
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="physics-presets">
+                        <h4>📋 プリセット</h4>
+                        <div class="preset-buttons">
+                            <button id="ideal-preset-btn" class="btn btn-ideal">
+                                ✨ 理想条件
+                            </button>
+                            <button id="realistic-preset-btn" class="btn btn-realistic">
+                                🌍 現実的
+                            </button>
+                            <button id="extreme-preset-btn" class="btn btn-extreme">
+                                🔥 極限環境
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 
                 <div id="environmental-controls" class="environmental-controls">

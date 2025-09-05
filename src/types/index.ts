@@ -61,6 +61,7 @@ export enum SimulationMode {
 export interface CollisionObject {
     mesh: THREE.Mesh;
     velocity: THREE.Vector3;
+    angularVelocity: THREE.Vector3;
     mass: number;
     id: string;
     type: 'P' | 'Q';
@@ -71,4 +72,30 @@ export interface CollisionStats {
     massRatio: number;
     piEstimate: number;
     error: number;
+}
+
+export interface FrictionParameters {
+    slidingFriction: number;       // 滑り摩擦係数 (0.05-0.15)
+    rollingFriction: number;        // 転がり摩擦係数 (0.001-0.01)
+    staticFriction: number;         // 静止摩擦係数 (0.1-0.2)
+}
+
+export interface EnvironmentalConditions {
+    temperature: number;            // 温度 (℃)
+    humidity: number;              // 湿度 (%)
+    pressure: number;              // 気圧 (Pa)
+}
+
+export interface CollisionPhysicsParameters {
+    friction: FrictionParameters;  // 摩擦パラメータ
+    wallRestitution: number;       // 壁の反発係数 (0-1) 
+    objectRestitution: number;     // 物体間反発係数 (0-1)
+    airResistance: number;         // 空気抵抗係数 (0-0.1)
+    surfaceRoughness: number;      // 表面粗さ (0-0.1)
+    rotationalDamping: number;     // 回転減衰 (0-1)
+    dragCoefficient: number;       // 抗力係数 (球体では0.47)
+    magnusCoefficient: number;     // Magnus効果係数 (0-0.5)
+    environment: EnvironmentalConditions; // 環境条件
+    enableMagnusEffect: boolean;   // Magnus効果の有効/無効
+    enableRealisticAirDrag: boolean; // 物理的に正確な空気抵抗の有効/無効
 }
